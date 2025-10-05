@@ -25,19 +25,19 @@ class MSDProcessor(object):
         logger.info("Loading data from {}".format(self.data_path[mode]))
 
         with open(self.data_path[mode], "r", encoding="utf-8") as f:
-            dataset = json.load(f)  # 加载整个数据集
+            dataset = json.load(f)  # Load entire dataset
 
             raw_texts, raw_labels, imgs = [], [], []
 
-            for index in range(0, len(dataset)):  # 一条一条地读取数据
+            for index in range(0, len(dataset)):  # Read data one by one
                 sample = dataset[index]
 
                 img_id = sample['Pic_id']
                 text = sample['Text']
                 label = int(sample['Sentiment']) + 2 # 0-5
-                assert 0 <= label <= 4, f"非法标签: {label}"
+                assert 0 <= label <= 4, f"Invalid label: {label}"
   
-                # 将所有数据分别放到对应的列表中
+                # Put all data into corresponding lists
                 raw_texts.append(text)
                 raw_labels.append(label)
                 imgs.append(img_id)
@@ -49,22 +49,22 @@ class MSDProcessor(object):
 
 class MSDDataset(Dataset):
     """
-    多模态情感检测数据集，支持三张图片输入
-    - img_path: 原始广告图片路径
-    - img_path2: Source区域截图路径
-    - img_path3: Target区域截图路径
+    Multimodal sentiment detection dataset supporting three image inputs
+    - img_path: Original advertisement image path
+    - img_path2: Source region crop path
+    - img_path3: Target region crop path
     """
     def __init__(self, processor, img_path, img_path2=None, img_path3=None, max_seq=128, mode="train"):
         self.processor = processor
-        self.img_path = img_path      # 原始广告图片
-        self.img_path2 = img_path2    # Source区域截图
-        self.img_path3 = img_path3    # Target区域截图
-        # 分词器
+        self.img_path = img_path      # Original advertisement image
+        self.img_path2 = img_path2    # Source region crop
+        self.img_path3 = img_path3    # Target region crop
+        # Tokenizer
         self.tokenizer = self.processor.tokenizer
         self.data_dict = self.processor.load_from_file(mode)
         self.clip_processor = self.processor.clip_processor
         self.max_seq = max_seq
-        # 统计Target图片的有效性
+        # Statistics for Target image validity
         self.path3_valid_count = 0
         self.path3_invalid_count = 0
         self.total_images = len(self.data_dict['imgs'])
@@ -98,10 +98,10 @@ class MSDDataset(Dataset):
         assert len(input_mask) == self.max_seq
         assert len(segment_ids) == self.max_seq
 
-        # 处理三张图片：原图、Source截图、Target截图
+        # Process three images: original, Source crop, Target crop
         images = []
         
-        # 图片1：原始广告图片（必须提供）
+        # Image 1: Original advertisement image (required)
         img_path1 = os.path.join(self.img_path, img_name)
         try:
             image1 = Image.open(img_path1).convert('RGB')
@@ -112,21 +112,21 @@ class MSDDataset(Dataset):
             image1 = self.clip_processor(images=image1, return_tensors='pt')['pixel_values'].squeeze()
         images.append(image1)
         
-        # 图片2：Source区域截图（可选，不存在时使用原图）
+        # Image 2: Source region crop (optional, uses original if not available)
         if self.img_path2 is not None:
             img_path2 = os.path.join(self.img_path2, img_name)
             try:
                 image2 = Image.open(img_path2).convert('RGB')
                 image2 = self.clip_processor(images=image2, return_tensors='pt')['pixel_values'].squeeze()
             except:
-                # 如果Source截图不存在，使用原图替代
+                # If Source crop doesn't exist, use original image
                 image2 = image1
             images.append(image2)
         else:
-            # 如果未提供Source路径，使用原图
+            # If Source path not provided, use original image
             images.append(image1)
         
-        # 图片3：Target区域截图（可选，不存在时使用原图）
+        # Image 3: Target region crop (optional, uses original if not available)
         if self.img_path3 is not None:
             img_path3 = os.path.join(self.img_path3, img_name)
             try:
@@ -134,16 +134,16 @@ class MSDDataset(Dataset):
                 image3 = self.clip_processor(images=image3, return_tensors='pt')['pixel_values'].squeeze()
                 self.path3_valid_count += 1
                 if idx == self.total_images - 1:
-                    print(f"[{self.mode}] Target截图有效: {self.path3_valid_count}/{self.total_images}, 使用原图替代: {self.path3_invalid_count}")
+                    print(f"[{self.mode}] Target crops valid: {self.path3_valid_count}/{self.total_images}, using original: {self.path3_invalid_count}")
             except:
-                # 如果Target截图不存在，使用原图替代
+                # If Target crop doesn't exist, use original image
                 image3 = image1
                 self.path3_invalid_count += 1
                 if idx == self.total_images - 1:
-                    print(f"[{self.mode}] Target截图有效: {self.path3_valid_count}/{self.total_images}, 使用原图替代: {self.path3_invalid_count}")
+                    print(f"[{self.mode}] Target crops valid: {self.path3_valid_count}/{self.total_images}, using original: {self.path3_invalid_count}")
             images.append(image3)
         else:
-            # 如果未提供Target路径，使用原图
+            # If Target path not provided, use original image
             images.append(image1)
         
         img_mask = [1] * 50

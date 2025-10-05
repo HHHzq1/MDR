@@ -26,8 +26,8 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message
 logger = logging.getLogger(__name__)
 
 
-def set_seed(seed=2023):
-    """set random seed"""
+def set_seed(seed=2025):
+    """Set random seed for reproducibility"""
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
@@ -36,7 +36,7 @@ def set_seed(seed=2023):
 
 
 def collate_fn(batch):
-    """处理批次数据，保留三张图片"""
+    """Process batch data while preserving three images"""
     input_ids, input_masks, segment_ids, img_masks, labels, images1, images2, images3 = zip(*batch)
     
     return (torch.stack(input_ids), torch.stack(input_masks), 
@@ -48,37 +48,37 @@ def collate_fn(batch):
 def main():
     warnings.filterwarnings("ignore", category=UserWarning, module="PIL.TiffImagePlugin")
     
-    # 设置指定的GPU
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # 使用编号为1的GPU
+    # Set specified GPU
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Use GPU 0
 
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--bert_name', default='ex_model/pretrained_model/bert-base-multilingual-uncased', type=str, help="Pretrained language model path")
+    parser.add_argument('--bert_name', default='pretrained_models/bert-base-multilingual-uncased', type=str, help="Pretrained language model path")
     # parser.add_argument("--vit_name", default="openai/clip-vit-base-patch32", type=str, help="The name of vit")
-    parser.add_argument("--vit_name", default="ex_model/pretrained_model/clip-vit-base-patch32", type=str, help="The name of vit")
+    parser.add_argument("--vit_name", default="pretrained_models/clip-vit-base-patch32", type=str, help="The name of vit")
     parser.add_argument('--num_epochs', default=30, type=int, help="num training epochs")
     parser.add_argument('--device', default=device, type=str, help="cuda or cpu")
     parser.add_argument('--batch_size', default=64, type=int, help="batch size")
     parser.add_argument('--lr', default=3e-5, type=float, help="learning rate")
     parser.add_argument('--warmup_ratio', default=0.01, type=float)
     parser.add_argument('--eval_begin_epoch', default=1, type=int, help="epoch to start evluate")
-    parser.add_argument('--seed', default=2023, type=int, help="random seed, default is 1")
+    parser.add_argument('--seed', default=2025, type=int, help="random seed, default is 1")
     parser.add_argument('--load_path', default=None, type=str, help="Load model from load_path")
     parser.add_argument('--save_path', default='./output/', type=str, help="save best model at save_path")
     parser.add_argument('--write_path', default=None, type=str,
                         help="do_test=True, predictions will be write in write_path")
     parser.add_argument('--notes', default="", type=str, help="input some remarks for making save path dir.")
 
-    # 多图片路径参数：原图片、Source截图、Target截图
-    parser.add_argument('--img_path', default='/home/chuzuowei/hhh2q/mywork_ms/data/ads/image', 
-                        type=str, help="原始广告图片文件夹路径（必须提供）")
+    # Multiple image path parameters: original image, Source crop, Target crop
+    parser.add_argument('--img_path', default='data/images', 
+                        type=str, help="Original advertisement image folder path (required)")
     parser.add_argument('--img_path2', default=None, 
-                        type=str, help="Source截取区域图片文件夹路径（可选，不提供时使用原图）")
+                        type=str, help="Source cropped region image folder path (optional, uses original if not provided)")
     parser.add_argument('--img_path3', default=None, 
-                        type=str, help="Target截取区域图片文件夹路径（可选，不提供时使用原图）")
+                        type=str, help="Target cropped region image folder path (optional, uses original if not provided)")
 
     parser.add_argument('--do_train', action='store_true', default=True)
     parser.add_argument('--only_test', action='store_true')
@@ -109,61 +109,31 @@ def main():
     args = parser.parse_args()
     
     data_path = {
-        'train': '/home/chuzuowei/hhh2q/mywork_ms/data/ads/train.json',
-        'dev': '/home/chuzuowei/hhh2q/mywork_ms/data/ads/dev.json',
-        'test': '/home/chuzuowei/hhh2q/mywork_ms/data/ads/test.json'
+        'train': 'data/train.json',
+        'dev': 'data/dev.json',
+        'test': 'data/test.json'
     }
-    # 使用命令行参数中的图片路径：原图、Source截图、Target截图
-    img_path = args.img_path      # 原始广告图片
-    img_path2 = args.img_path2    # Source区域截图
-    img_path3 = args.img_path3    # Target区域截图
-    
-    '''
-        data_path = {
-            'train': 'mywork_ms/other/D2R-main/data/multimeme/chinese/train.json',
-            'dev': 'mywork_ms/other/D2R-main/data/multimeme/chinese/dev.json',
-            'test': 'mywork_ms/other/D2R-main/data/multimeme/chinese/test.json'
-        }
-    '''
-
-    '''
-    data_path = {
-        'train': 'D2R_two/train_data.json',
-        'dev': 'D2R_two/val_data.json',
-        'test': 'D2R_two/test_data.json'
-    }
-    
-    '''
-    # data_path = {
-    #     'train': 'data/MVSA-multiple/10-flod-1/train.json',
-    #     'dev': 'data/MVSA-multiple/10-flod-1/dev.json',
-    #     'test': 'data/MVSA-multiple/10-flod-1/test.json'
-    # }
-    # img_path = 'data/MVSA-multiple/MVSA/data'
-
-    # data_path = {
-    #     'train': 'data/HFM/train.json',
-    #     'dev': 'data/HFM/valid.json',
-    #     'test': 'data/HFM/test.json'
-    # }
-    # img_path = 'data/HFM/dataset_image'
+    # Use image paths from command line arguments: original, Source crop, Target crop
+    img_path = args.img_path      # Original advertisement image
+    img_path2 = args.img_path2    # Source region crop
+    img_path3 = args.img_path3    # Target region crop
 
     data_process, dataset_class = (MSDProcessor, MSDDataset)
 
     set_seed(args.seed)
-    # 确保保存路径存在，修改创建逻辑
+    # Ensure save path exists, modify creation logic
     if args.save_path is not None:
-        # 移除可能的结尾斜杠，然后确保目录存在
+        # Remove possible trailing slash, then ensure directory exists
         save_dir = args.save_path.rstrip('/')
         if not os.path.exists(save_dir):
             try:
                 os.makedirs(save_dir, exist_ok=True)
-                print(f"成功创建保存目录: {save_dir}")
+                print(f"Successfully created save directory: {save_dir}")
             except Exception as e:
-                print(f"创建目录失败: {e}")
-                # 如果创建失败，设置为当前目录
+                print(f"Failed to create directory: {e}")
+                # If creation fails, set to current directory
                 args.save_path = './'
-                print(f"将保存路径设置为当前目录: {args.save_path}")
+                print(f"Set save path to current directory: {args.save_path}")
     print(args)
 
     # if not os.path.exists('./log'):
@@ -197,7 +167,7 @@ def main():
         text_config = BertConfig.from_pretrained(args.bert_name)
 
         model = UnimoModelF(args=args, vision_config=vision_config, text_config=text_config)
-        model = model.to(device)  # 确保模型在指定的设备上
+        model = model.to(device)  # Ensure model is on specified device
 
         trainer = MSDTrainer(train_data=train_dataloader, dev_data=dev_dataloader, test_data=test_dataloader,
                               model=model, args=args, logger=logger, writer=writer)

@@ -180,7 +180,7 @@ class SoftContrastiveLoss(nn.Module):
         # Expand to the right
         d = diagonal.expand_as(scores)
         # Given emb1 retrieves the number of entries in emb2
-        # clamp（）函数的功能将输入input张量每个元素的值压缩到区间 [min,max]，并返回结果到一个新张量。
+        # clamp() function compresses each element value of input tensor to interval [min,max] and returns result to a new tensor
         cost_emb1 = (self.margin + scores - d).clamp(min=0)
 
         # clear positive pairs
@@ -428,12 +428,12 @@ class AmbiguityLearning(nn.Module):
         skl = (kl_1_2 + kl_2_1)/ 2.
         skl = torch.sigmoid(skl)
 
-        # 拼接三个通道的模糊度作为target   (1-skl, skl, 1-skl)
+        # Concatenate ambiguity of three channels as target (1-skl, skl, 1-skl)
         weight_uni = (1 - skl).unsqueeze(1)
         weight_corre = skl.unsqueeze(1)
         weight_target = torch.cat((weight_uni, weight_corre, weight_uni), dim=1)    # (bsz, 3)
 
-        # JS散度 -> 双向KL散度    (bsz, 3)
+        # JS divergence -> bidirectional KL divergence (bsz, 3)
         js_loss = - js_div(weight_input, weight_target)
         # js_loss = js_div(weight_input, weight_target)
 

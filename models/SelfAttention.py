@@ -1,6 +1,6 @@
 """
-Self-Attention模块
-用于序列内部的自注意力计算
+Self-Attention Module
+Used for self-attention computation within sequences
 """
 
 import torch
@@ -11,12 +11,12 @@ import copy
 
 
 def clones(module, N):
-    """产生N个相同的层"""
+    """Generate N identical layers"""
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])  
 
 
 class AttentionLayer(nn.Module):
-    """多头注意力层"""
+    """Multi-head attention layer"""
     def __init__(self, embed_size, h, is_share=False, drop=0.0):
         super(AttentionLayer, self).__init__()
         self.is_share = is_share

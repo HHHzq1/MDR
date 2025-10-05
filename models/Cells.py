@@ -1,9 +1,9 @@
 """
-MDR_ads Cell模块定义
-包含三个核心Cell：
-- GlobalLocalAlignmentCell (GLAC): 文本域处理
-- GlobalEnhancedSemanticCell (GESC): 图像域处理
-- Reversed_GlobalLocalAlignmentCell (R_GLAC): 互补信息处理
+MDR_ads Cell Module Definitions
+Contains three core Cells:
+- GlobalLocalAlignmentCell (GLAC): Text domain processing
+- GlobalEnhancedSemanticCell (GESC): Image domain processing
+- Reversed_GlobalLocalAlignmentCell (R_GLAC): Complementary information processing
 """
 
 import torch
@@ -30,14 +30,14 @@ def l2norm(X, dim=-1, eps=1e-8):
 
 
 class BertPooler(nn.Module):
-    """从BERT隐藏状态中提取[CLS] token的pooler"""
+    """Pooler to extract [CLS] token from BERT hidden states"""
     def __init__(self, config):
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.activation = nn.Tanh()
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        # 提取第一个token ([CLS])的隐藏状态
+        # Extract the hidden state of the first token ([CLS])
         first_token_tensor = hidden_states[:, 0]
         pooled_output = self.dense(first_token_tensor)
         pooled_output = self.activation(pooled_output)
@@ -46,8 +46,8 @@ class BertPooler(nn.Module):
 
 class GlobalLocalAlignmentCell(nn.Module):
     """
-    全局-局部对齐Cell (GLAC) - 文本域处理
-    通过计算文本和图像的全局与局部相似性来增强特征表示
+    Global-Local Alignment Cell (GLAC) - Text Domain Processing
+    Enhances feature representation by computing global and local similarity between text and image
     """
     def __init__(self, args, num_out_path):
         super(GlobalLocalAlignmentCell, self).__init__()
@@ -63,25 +63,25 @@ class GlobalLocalAlignmentCell(nn.Module):
         self.fc_2 = nn.Linear(768, 768)
 
     def alignment(self, text, image):
-        """计算文本-图像的全局和局部对齐"""
-        # 局部相似性表征
+        """Compute global and local alignment between text and image"""
+        # Local similarity representation
         text_aware_image, _ = self.CrossModalAlignment(text, image)  # (bsz, seq_len, 768)
 
         sim_local = torch.pow(torch.sub(text, text_aware_image), 2)
         sim_local = l2norm(self.fc_sim_tranloc(sim_local), dim=-1)
         sim_local = self.fc_1(sim_local)
 
-        # 全局相似性表征
+        # Global similarity representation
         text_cls_output = self.text_cls_pool(text)
         image_cls_output = self.image_cls_pool(image)
         sim_global = torch.pow(torch.sub(text_cls_output, image_cls_output), 2)
         sim_global = l2norm(self.fc_sim_tranglo(sim_global), dim=-1)
         sim_global = self.fc_2(sim_global)
 
-        # 拼接全局和局部对齐
+        # Concatenate global and local alignment
         sim_emb = torch.cat([sim_global.unsqueeze(1), sim_local], 1)  # (bsz, seq_len+1, 768)
 
-        # 相似图推理
+        # Similarity graph reasoning
         sim_emb = self.SAF_module(sim_emb)  # (bsz, 768)
 
         return sim_emb
@@ -97,8 +97,8 @@ class GlobalLocalAlignmentCell(nn.Module):
 
 class GlobalEnhancedSemanticCell(nn.Module):
     """
-    全局增强语义Cell (GESC) - 图像域处理
-    通过门控机制融合文本和图像的全局语义信息
+    Global Enhanced Semantic Cell (GESC) - Image Domain Processing
+    Fuses global semantic information of text and image through gating mechanism
     """
     def __init__(self, args, num_out_path):
         super(GlobalEnhancedSemanticCell, self).__init__()
@@ -115,11 +115,11 @@ class GlobalEnhancedSemanticCell(nn.Module):
         )
 
     def global_gate_fusion(self, text, image):
-        """全局门控融合"""
+        """Global gated fusion"""
         text_cls = self.text_cls_pool(text)  # (bsz, 768)
         image_cls = self.image_cls_pool(image)  # (bsz, 768)
 
-        # 门控机制：全局信息对齐、融合
+        # Gating mechanism: global information alignment and fusion
         gate_all = self.fc_mlp(text_cls + image_cls)  # (bsz, 768)
         gate = torch.softmax(gate_all, dim=-1)  # (bsz, 768)
         gate_out = gate * text_cls + (1 - gate) * image_cls  # (bsz, 768)
@@ -136,8 +136,8 @@ class GlobalEnhancedSemanticCell(nn.Module):
 
 class Reversed_GlobalLocalAlignmentCell(nn.Module):
     """
-    反向全局-局部对齐Cell (R_GLAC) - 互补信息处理
-    与GLAC相反，以图像为查询，文本为键值进行对齐
+    Reversed Global-Local Alignment Cell (R_GLAC) - Complementary Information Processing
+    Opposite to GLAC, uses image as query and text as key-value for alignment
     """
     def __init__(self, args, num_out_path):
         super(Reversed_GlobalLocalAlignmentCell, self).__init__()
@@ -153,25 +153,25 @@ class Reversed_GlobalLocalAlignmentCell(nn.Module):
         self.fc_2 = nn.Linear(768, 768)
 
     def alignment(self, image, text):
-        """计算图像-文本的全局和局部对齐（输入顺序与GLAC相反）"""
-        # 局部相似性表征
+        """Compute global and local alignment between image and text (input order reversed from GLAC)"""
+        # Local similarity representation
         image_aware_text, _ = self.CrossModalAlignment(image, text)
 
         sim_local = torch.pow(torch.sub(image, image_aware_text), 2)
         sim_local = l2norm(self.fc_sim_tranloc(sim_local), dim=-1)
         sim_local = self.fc_1(sim_local)
 
-        # 全局相似性表征
+        # Global similarity representation
         image_cls_output = self.image_cls_pool(image)
         text_cls_output = self.text_cls_pool(text)
         sim_global = torch.pow(torch.sub(image_cls_output, text_cls_output), 2)
         sim_global = l2norm(self.fc_sim_tranglo(sim_global), dim=-1)
         sim_global = self.fc_2(sim_global)
 
-        # 拼接全局和局部对齐
+        # Concatenate global and local alignment
         sim_emb = torch.cat([sim_global.unsqueeze(1), sim_local], 1)
 
-        # 相似图推理
+        # Similarity graph reasoning
         sim_emb = self.SAF_module(sim_emb)
 
         return sim_emb
@@ -181,19 +181,19 @@ class Reversed_GlobalLocalAlignmentCell(nn.Module):
 
         sim_emb = self.alignment(image, text)
         
-        # 获取目标序列长度（文本长度）
+        # Get target sequence length (text length)
         text_seq_len = text.size(1)
         
-        # 将sim_emb扩展为与图像序列长度一致的tensor
+        # Expand sim_emb to match image sequence length
         expanded_emb = sim_emb.unsqueeze(-2).expand(-1, image.size(1), -1)
         
-        # 如果图像序列长度与文本序列长度不一致，进行调整
+        # If image sequence length doesn't match text sequence length, adjust
         if image.size(1) != text_seq_len:
-            # 调整为与文本序列长度一致
+            # Adjust to match text sequence length
             expanded_emb = F.interpolate(
                 expanded_emb.transpose(1, 2),  # [B, D, L_img]
-                size=text_seq_len,             # 目标长度L_text
-                mode='linear'                  # 线性插值
-            ).transpose(1, 2)                  # 变回[B, L_text, D]
+                size=text_seq_len,             # Target length L_text
+                mode='linear'                  # Linear interpolation
+            ).transpose(1, 2)                  # Back to [B, L_text, D]
 
         return expanded_emb, path_prob

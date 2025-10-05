@@ -1,5 +1,5 @@
 """
-MDR_ads 主模型和损失函数
+MDR_ads main model and loss function
 """
 
 import torch
@@ -10,9 +10,9 @@ from torch.nn import CrossEntropyLoss
 
 class UnimoModelF(nn.Module):
     """
-    MDR_ads 主模型
-    支持三张图片输入（原图、Source截图、Target截图）
-    输出5分类情感预测
+    MDR_ads main model
+    Supports three image inputs (original, Source crop, Target crop)
+    Outputs 5-class sentiment prediction
     """
     def __init__(self, args, vision_config, text_config):
         super(UnimoModelF, self).__init__()
@@ -20,22 +20,22 @@ class UnimoModelF(nn.Module):
         self.vision_config = vision_config
         self.text_config = text_config
         self.model = UnimoModel(args, vision_config, text_config)
-        self.fc = nn.Linear(self.text_config.hidden_size, 5)  # 5分类
+        self.fc = nn.Linear(self.text_config.hidden_size, 5)  # 5-class classification
 
         self.CE_Loss = CrossEntropyLoss()
 
     def forward(self, input_ids, attention_mask, token_type_ids, labels, images, images2=None, images3=None):
         """
         Args:
-            input_ids: 文本输入ID
-            attention_mask: 注意力掩码
-            token_type_ids: Token类型ID
-            labels: 标签
-            images: 原始广告图片
-            images2: Source区域截图（可选）
-            images3: Target区域截图（可选）
+            input_ids: Text input IDs
+            attention_mask: Attention mask
+            token_type_ids: Token type IDs
+            labels: Labels
+            images: Original advertisement images
+            images2: Source region crops (optional)
+            images3: Target region crops (optional)
         """
-        # 如果没有提供images2和images3，使用原图替代
+        # If images2 and images3 are not provided, use original images
         if images2 is None:
             images2 = images
         if images3 is None:
@@ -50,7 +50,7 @@ class UnimoModelF(nn.Module):
                             return_dict=True
                             )
         pool_out = output.pooler_output
-        # 5分类头 (bsz, 768) -> (bsz, 5)
+        # 5-class head (bsz, 768) -> (bsz, 5)
         final_output = self.fc(pool_out)
 
         loss = self.CE_Loss(final_output, labels.long())

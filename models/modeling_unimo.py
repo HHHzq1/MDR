@@ -1,6 +1,6 @@
 """
-MDR_ads - Multimodal Dynamic Routing 模型定义
-单分支多模态动态路由网络，用于广告情感检测
+MDR_ads - Multimodal Dynamic Routing Model Definition
+Single-branch multimodal dynamic routing network for advertisement sentiment detection
 """
 
 import torch
@@ -769,11 +769,11 @@ class UnimoModel(nn.Module):
         self.text_pool = BertPooler(text_config)
         self.vision_pool = BertPooler(text_config)
         
-        # 多模态交互模块（单分支，3个Cell）
+        # Multimodal interaction module (single-branch, 3 Cells)
         self.multimodal_interaction = MultimodalInteractionModule(
             args, 
             num_layer_routing=args.DR_step, 
-            num_cells=3,  # 固定为3个Cell
+            num_cells=3,  # Fixed to 3 Cells
             path_hid=128
         )
 
@@ -792,30 +792,30 @@ class UnimoModel(nn.Module):
                 output_attentions=None,
                 output_hidden_states=None,
                 return_dict=None):
-        # 处理三张图片：原图、Source截图、Target截图
-        # 图片1：原始广告图片
+        # Process three images: original, Source crop, Target crop
+        # Image 1: Original advertisement image
         vision_embedding_output1 = self.vision_embeddings(pixel_values)
         vision_embedding_output1 = self.vision_pre_layrnorm(vision_embedding_output1)
         
-        # 如果提供了Source和Target截图，进行多图片融合
+        # If Source and Target crops are provided, perform multi-image fusion
         if pixel_values2 is not None and pixel_values3 is not None:
-            # 图片2：Source区域截图
+            # Image 2: Source region crop
             vision_embedding_output2 = self.vision_embeddings(pixel_values2)
             vision_embedding_output2 = self.vision_pre_layrnorm(vision_embedding_output2)
             
-            # 图片3：Target区域截图
+            # Image 3: Target region crop
             vision_embedding_output3 = self.vision_embeddings(pixel_values3)
             vision_embedding_output3 = self.vision_pre_layrnorm(vision_embedding_output3)
             
-            # 三张图片特征平均融合
+            # Average fusion of three image features
             vision_embedding_output = (vision_embedding_output1 + 
                                       vision_embedding_output2 + 
                                       vision_embedding_output3) / 3
         else:
-            # 只有原图时直接使用
+            # Use only original image if others not provided
             vision_embedding_output = vision_embedding_output1
 
-        # pre text
+        # Pre-process text
         input_shape = input_ids.shape
         batch_size, seq_length = input_shape
         device = input_ids.device
@@ -856,10 +856,10 @@ class UnimoModel(nn.Module):
             vision_output = vision_layer_module(vision_output, output_attentions=False)[0]
         vision_cls_output = self.vision_cls_pool(vision_output)       # (32, 768)
 
-        # 多模态交互
+        # Multimodal interaction
         pairs_emb_lst, sim_paths = self.multimodal_interaction(text_encode_out, vision_encode_out)
 
-        # 使用交互后的特征进行池化
+        # Pooling with interaction features
         output = self.text_pool(pairs_emb_lst[0]) 
 
         return BaseModelOutputWithPooling(

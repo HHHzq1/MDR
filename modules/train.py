@@ -136,18 +136,18 @@ class MSDTrainer(BaseTrainer):
                         pbar.set_postfix_str(print_output)
                         if self.writer:
                             self.writer.add_scalar(tag='train_loss', scalar_value=avg_loss,
-                                                   global_step=self.step)  # tensorbordx
+                                                   global_step=self.step)  # tensorboard
                         avg_loss = 0
 
                 if epoch >= self.args.eval_begin_epoch:
-                    self.evaluate(epoch)  # generator to dev.
+                    self.evaluate(epoch)  # Run evaluation on dev set
                     # self.test(epoch)
 
-            # 取最好的模型进行测试     './output/'
+            # Load best model for testing
             self.args.load_path = self.args.save_path + "best_model.pth"
             self.test(epoch)
 
-            # 递归删除文件夹
+            # Recursively delete output folder
             shutil.rmtree("./output")
 
             torch.cuda.empty_cache()
@@ -244,7 +244,7 @@ class MSDTrainer(BaseTrainer):
                 total_loss = 0
                 for batch in self.test_data:
                     batch = [tup.to(self.args.device) if isinstance(tup, torch.Tensor) else tup for tup in
-                             batch]  # to cpu/cuda device
+                             batch]  # Move to cpu/cuda device
                     (loss, logits), labels = self._step(batch, mode="test")  # logits: batch, 3
                     total_loss += loss.detach().cpu().item()
 
@@ -253,7 +253,7 @@ class MSDTrainer(BaseTrainer):
                     pred_labels.extend(preds.view(-1).detach().cpu().tolist())
 
                     pbar.update()
-                # evaluate done
+                # Evaluation done
                 pbar.close()
 
                 acc, recall, precision, micro_f1 = get_four_metrics(true_labels, pred_labels, type='weighted')
@@ -271,13 +271,13 @@ class MSDTrainer(BaseTrainer):
                     self.logger.info("  %s = %s", key, str(result[key]))
 
                 if self.writer:
-                    self.writer.add_scalar(tag='test_acc', scalar_value=acc)  # tensorbordx
-                    self.writer.add_scalar(tag='test_f1', scalar_value=micro_f1)  # tensorbordx
+                    self.writer.add_scalar(tag='test_acc', scalar_value=acc)  # tensorboard
+                    self.writer.add_scalar(tag='test_f1', scalar_value=micro_f1)  # tensorboard
                     self.writer.add_scalar(tag='test_loss',
-                                           scalar_value=total_loss / len(self.test_data))  # tensorbordx
+                                           scalar_value=total_loss / len(self.test_data))  # tensorboard
                 total_loss = 0
                 
-                # 输出测试结果，包括准确率
+                # Output test results including accuracy
                 self.logger.info("Test results - f1 score: {}, acc: {}".format(micro_f1, acc))
                 
                 # self.logger.info("Epoch {}/{}, best test f1: {}, best epoch: {}, current test f1 score: {}, acc: {}." \
@@ -290,7 +290,7 @@ class MSDTrainer(BaseTrainer):
         self.model.train()
 
     def _step(self, batch, mode="train"):
-        # 将生成器转换为列表
+        # Convert generator to list
         batch_items = list(batch)
         
         if len(batch_items) == 6:
@@ -298,7 +298,7 @@ class MSDTrainer(BaseTrainer):
             outputs = self.model(input_ids=input_ids, attention_mask=input_mask, token_type_ids=segment_ids,
                                 labels=labels, images=images)
         else:
-            # 处理三张图片的情况
+            # Handle three-image case
             input_ids, input_mask, segment_ids, img_mask, labels, images, images2, images3 = batch_items
             outputs = self.model(input_ids=input_ids, attention_mask=input_mask, token_type_ids=segment_ids,
                                 labels=labels, images=images, images2=images2, images3=images3)
